@@ -12,11 +12,12 @@ use rusoto_core::Region;
 use rusoto_ecs::{Ecs, EcsClient, ListClustersRequest, ListTasksRequest, DescribeTasksRequest};
 use subprocess::Exec;
 use dotenv_parser::parse_dotenv;
-use task::Container;
+use which::which;
 
 mod cli;
 mod task;
 
+use crate::task::Container;
 use crate::cli::Cli;
 use crate::task::Task;
 
@@ -24,6 +25,8 @@ use crate::task::Task;
 async fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
+    confirm_dependencies()?;
+
     match cli.command {
         cli::Commands::Login {environment} => {
             let profile = get_profile(environment).await?;
@@ -189,5 +192,11 @@ fn choose_container(task: &Task, container_name: Option<String>) -> Result<Conta
 
 async fn execute_bash_container(cluster_arn: String, task: &Task, container: &Container) -> Result<()> {
     Exec::shell(format!("aws ecs execute-command --cluster {} --task {} --container {} --command \"/usr/bin/env bash\" --interactive", &cluster_arn, task.arn, container.name)).join()?;
+    Ok(())
+}
+
+fn confirm_dependencies() -> Result<()> {
+    which("aws-vault").map_err(|_| anyhow!("Failed to find aws-vault. Is it installed and in your PATH?"))?;
+    which("aws").map_err(|_| anyhow!("Failed to find the AWS CLI. Is it installed and in your PATH?"))?;
     Ok(())
 }

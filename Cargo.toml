@@ -21,4 +21,5 @@ rusoto_ecs = "0.47.0"
 rusoto_core = "0.47.0"
 dialoguer = "0.9"
 subprocess = "0.2.8"
+which = "4.2.4"
 strum = { version = "0.23", features = ["derive"] }
