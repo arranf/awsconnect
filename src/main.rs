@@ -1,4 +1,7 @@
 #![warn(clippy::all, clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::single_match_else)]
+
 use std::str::FromStr;
 use std::{io::Read, env};
 
@@ -46,7 +49,7 @@ async fn main() -> Result<()> {
             let cluster_arn = get_cluster(cluster, &ecs_client).await?;
             let task = get_tasks(task, &cluster_arn, &ecs_client).await?;
             let container = choose_container(&task, container)?;
-            execute_bash_container(cluster_arn, &task, &container).await?;
+            execute_bash_container(&cluster_arn, &task, &container)?;
         },
     }
 
@@ -76,7 +79,7 @@ async fn get_profile(passed_profile_name: Option<String>) -> Result<Profile> {
         } ,
         None => {
             let mut options = profile.profiles().filter(|p| *p != "default").collect::<Vec<_>>();
-            options.sort();
+            options.sort_unstable();
 
             let selection = Select::with_theme(&ColorfulTheme::default())
                 .with_prompt("Pick your environment")
@@ -92,7 +95,7 @@ async fn get_profile(passed_profile_name: Option<String>) -> Result<Profile> {
     };
     
     let profile = profile.get_profile(&profile_name).context("Couldn't find profile")?;
-    Ok(profile.to_owned())
+    Ok(profile.clone())
 }
 
 async fn get_cluster(cluster_name: Option<String>, client: &EcsClient) -> Result<String> {
@@ -110,37 +113,31 @@ async fn get_cluster(cluster_name: Option<String>, client: &EcsClient) -> Result
                 .interact()
                 .unwrap();
             
-            Ok(clusters[selection].to_owned())
+            Ok(clusters[selection].clone())
         }
     }
 }
 
 /// Gets all the running tasks across clusters the profile can access
-async fn get_tasks(task: Option<String>, cluster: &String, client: &EcsClient) -> Result<Task> {
+async fn get_tasks(task: Option<String>, cluster: &str, client: &EcsClient) -> Result<Task> {
     match task {
         Some(name) => {
-            let mut describe_request = DescribeTasksRequest::default();
-            describe_request.cluster = Some(cluster.to_owned());
-            describe_request.tasks = vec![name];
-            
+            let describe_request = DescribeTasksRequest { cluster: Some(String::from(cluster)), tasks: vec![name], ..DescribeTasksRequest::default() };
+       
             let describe_result = client.describe_tasks(describe_request).await.context("Failed to contact ECS API and describe tasks")?;
             if describe_result.failures.as_ref().is_some() && !describe_result.failures.as_ref().unwrap().is_empty() {
                 bail!("Failed to contact ESC API. Failed: {:?}", describe_result.failures.as_ref().unwrap());
             }
             let tasks = describe_result.tasks.context("No task found")?;
-            Ok(Task::from( tasks.first().unwrap().to_owned()))
+            Ok(Task::from( tasks.first().unwrap().clone()))
         },
         None => {
-            let mut list_request = ListTasksRequest::default();
-            list_request.cluster = Some(cluster.to_owned());
+            let list_request = ListTasksRequest { cluster: Some(String::from(cluster)), ..ListTasksRequest::default() };
 
             let list_result = client.list_tasks(list_request).await.context("Failed to contact ECS API and list tasks")?;
             let task_arns = list_result.task_arns.context("No tasks found")?;
 
-            let mut describe_request = DescribeTasksRequest::default();
-            describe_request.cluster = Some(cluster.to_owned());
-            describe_request.tasks = task_arns;
-
+            let describe_request = DescribeTasksRequest { cluster: Some(String::from(cluster)), tasks: task_arns, ..DescribeTasksRequest::default()};
             let describe_result = client.describe_tasks(describe_request).await.context("Failed to contact ECS API and describe tasks")?;
 
             if describe_result.failures.as_ref().is_some() && !describe_result.failures.as_ref().unwrap().is_empty() {
@@ -148,9 +145,9 @@ async fn get_tasks(task: Option<String>, cluster: &String, client: &EcsClient) -
             }
 
             let tasks = describe_result.tasks.context("No tasks found")?;
-            let mut tasks: Vec<Task> = tasks.into_iter().map(|task| Task::from(task)).collect();
+            let mut tasks: Vec<Task> = tasks.into_iter().map(Task::from).collect();
             tasks.sort();
-            let friendly_task_names: Vec<String> = tasks.iter().map(|task| task.friendly_output()).collect();
+            let friendly_task_names: Vec<String> = tasks.iter().map(task::Task::friendly_output).collect();
 
             let selection = Select::with_theme(&ColorfulTheme::default())
                 .with_prompt("Pick your task")
@@ -159,7 +156,7 @@ async fn get_tasks(task: Option<String>, cluster: &String, client: &EcsClient) -
                 .interact()
                 .unwrap();
 
-            let task = Task::from(tasks[selection].clone());
+            let task = tasks[selection].clone();
             
             Ok(task)
         }
@@ -169,12 +166,12 @@ async fn get_tasks(task: Option<String>, cluster: &String, client: &EcsClient) -
 fn choose_container(task: &Task, container_name: Option<String>) -> Result<Container> {
     match container_name {
         Some(name) => {
-            return task.containers.clone().into_iter().find(|c| (c.name == name) || c.arn == name ).ok_or_else(|| anyhow!("No container found matching"));
+            task.containers.clone().into_iter().find(|c| (c.name == name) || c.arn == name ).ok_or_else(|| anyhow!("No container found matching"))
         },
         None => {
             if task.containers.len() == 1 {
                 let c = task.containers.first().unwrap();
-                return Ok(c.to_owned());
+                return Ok(c.clone());
             }
 
             let friendly_container_name: Vec<String> = task.containers.iter().map(|c| c.name.clone()).collect();
@@ -190,8 +187,8 @@ fn choose_container(task: &Task, container_name: Option<String>) -> Result<Conta
     }
 }
 
-async fn execute_bash_container(cluster_arn: String, task: &Task, container: &Container) -> Result<()> {
-    Exec::shell(format!("aws ecs execute-command --cluster {} --task {} --container {} --command \"/usr/bin/env bash\" --interactive", &cluster_arn, task.arn, container.name)).join()?;
+fn execute_bash_container(cluster_arn: &str, task: &Task, container: &Container) -> Result<()> {
+    Exec::shell(format!("aws ecs execute-command --cluster {} --task {} --container {} --command \"/usr/bin/env bash\" --interactive", cluster_arn, task.arn, container.name)).join()?;
     Ok(())
 }
 

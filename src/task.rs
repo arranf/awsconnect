@@ -1,3 +1,5 @@
+#![allow(clippy::upper_case_acronyms)]
+
 use std::cmp::Ordering;
 use std::{convert::From};
 use std::str::FromStr;
@@ -43,7 +45,7 @@ impl Task {
 
 impl From<rusoto_ecs::Task> for Task {
     fn from(item: rusoto_ecs::Task) -> Self {
-        let name = item.task_definition_arn.as_ref().expect("Failed to get task arn from task").split(":task-definition/").nth(1).unwrap().split(":").nth(0).unwrap().to_owned();
+        let name = item.task_definition_arn.as_ref().expect("Failed to get task arn from task").split(":task-definition/").nth(1).unwrap().split(':').next().unwrap().to_owned();
         let containers = item.containers.expect("Failed to identify containers on task")
             .into_iter()
             .map(|c|Container { arn: c.container_arn.expect("Container had no ARN"), name: c.name.unwrap(), status: c.last_status.unwrap(), }).collect();
@@ -98,7 +100,7 @@ pub enum TaskStatus {
 impl TaskStatus {
     fn pretty_status(self) -> String {
         if self != TaskStatus::RUNNING {
-           return format!(" {}", self.to_string());
+           return format!(" {}", self);
         }
         String::from("")
     }
