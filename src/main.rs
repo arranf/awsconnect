@@ -3,6 +3,7 @@
 #![allow(clippy::single_match_else)]
 
 use std::str::FromStr;
+use std::time::Duration;
 use std::{io::Read, env};
 
 use log::{warn, debug};
@@ -16,9 +17,14 @@ use rusoto_ecs::{Ecs, EcsClient, ListClustersRequest, ListTasksRequest, Describe
 use subprocess::Exec;
 use dotenv_parser::parse_dotenv;
 use which::which;
+use update_informer::{registry::GitHub, Check, UpdateInformer};
+use colored::Colorize;
 
 mod cli;
 mod task;
+
+
+const EVERY_DAY: Duration = Duration::from_secs(60 * 60 * 24);
 
 use crate::task::Container;
 use crate::cli::Cli;
@@ -29,6 +35,28 @@ async fn main() -> Result<()> {
     env_logger::init();
     let cli = Cli::parse();
     confirm_dependencies()?;
+
+    let name = "arranf/awsconnect";
+    let current_version = env!("CARGO_PKG_VERSION");
+    let informer_version = UpdateInformer::new(GitHub, name, current_version, EVERY_DAY).check_version();
+
+    if let Ok(Some(version)) = informer_version {
+        let msg = format!(
+            "A new release of {pkg_name} is available: v{current_version} -> {new_version}",
+            pkg_name = name.italic().cyan(),
+            current_version = current_version,
+            new_version = version.to_string().green()
+        );
+
+        let release_url = format!(
+            "https://github.com/{pkg_name}/releases/tag/{version}",
+            pkg_name = name,
+            version = version
+        )
+            .yellow();
+
+        println!("\n{msg}\n{url}\n", msg = msg, url = release_url);
+    }
 
     match cli.command {
         cli::Commands::Login {environment} => {
