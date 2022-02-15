@@ -1,6 +1,6 @@
 [package]
 name = "awsconnect"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 authors = ["Arran France <arran@arranfrance.com>"]
@@ -19,7 +19,9 @@ aws-config = "0.6.0"
 aws-types = "0.6.0"
 rusoto_ecs = "0.47.0"
 rusoto_core = "0.47.0"
-dialoguer = "0.9"
+dialoguer = "0.10.0"
 subprocess = "0.2.8"
 which = "4.2.4"
 strum = { version = "0.23", features = ["derive"] }
+update-informer = "0.2.0"
+colored = "2.0.0"
