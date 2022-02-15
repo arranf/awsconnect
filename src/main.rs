@@ -24,6 +24,8 @@ mod cli;
 mod task;
 
 
+const PKG_NAME: &str = "arranf/awsconnect";
+const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const EVERY_DAY: Duration = Duration::from_secs(60 * 60 * 24);
 
 use crate::task::Container;
@@ -36,27 +38,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     confirm_dependencies()?;
 
-    let name = "arranf/awsconnect";
-    let current_version = env!("CARGO_PKG_VERSION");
-    let informer_version = UpdateInformer::new(GitHub, name, current_version, EVERY_DAY).check_version();
-
-    if let Ok(Some(version)) = informer_version {
-        let msg = format!(
-            "A new release of {pkg_name} is available: v{current_version} -> {new_version}",
-            pkg_name = name.italic().cyan(),
-            current_version = current_version,
-            new_version = version.to_string().green()
-        );
-
-        let release_url = format!(
-            "https://github.com/{pkg_name}/releases/tag/{version}",
-            pkg_name = name,
-            version = version
-        )
-            .yellow();
-
-        println!("\n{msg}\n{url}\n", msg = msg, url = release_url);
-    }
+    check_for_updates();
 
     match cli.command {
         cli::Commands::Login {environment} => {
@@ -82,6 +64,28 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn check_for_updates() {
+    let name = PKG_NAME;
+    let informer_version = UpdateInformer::new(GitHub, name, CURRENT_VERSION, EVERY_DAY).check_version();
+    if let Ok(Some(version)) = informer_version {
+        let msg = format!(
+            "A new release of {pkg_name} is available: v{current_version} -> {new_version}",
+            pkg_name = PKG_NAME.italic().cyan(),
+            current_version = CURRENT_VERSION,
+            new_version = version.to_string().green()
+        );
+
+        let release_url = format!(
+            "https://github.com/{pkg_name}/releases/tag/{version}",
+            pkg_name = PKG_NAME,
+            version = version
+        )
+            .yellow();
+
+        println!("\n{msg}\n{url}\n", msg = msg, url = release_url);
+    }
 }
 
 /// Extracts the needed environment variables to call AWS commands from aws-vault, and adds them to the current process
